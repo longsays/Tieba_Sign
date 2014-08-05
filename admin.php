@@ -19,36 +19,37 @@ switch($_GET['action']){
 			$data[$_uid]['retry'] = 0;
 			$data[$_uid]['unsupport'] = 0;
 		}
-		$query = DB::query("SELECT uid, COUNT(*) FROM `sign_log` WHERE date='{$date}' AND status='2' GROUP BY uid");
+		$query = DB::query("SELECT uid, COUNT(*) AS num FROM `sign_log` WHERE date='{$date}' AND `status`=2 GROUP BY uid");
 		while($result = DB::fetch($query)){
 			$_uid = $result['uid'];
-			$data[$_uid]['succeed'] = $result['COUNT(*)'];
+			$data[$_uid]['succeed'] = $result['num'];
 		}
-		$query = DB::query("SELECT uid, COUNT(*) FROM `sign_log` WHERE date='{$date}' AND status='0' GROUP BY uid");
+		$query = DB::query("SELECT uid, COUNT(*) AS num FROM `sign_log` WHERE date='{$date}' AND `status`=0 GROUP BY uid");
 		while($result = DB::fetch($query)){
 			$_uid = $result['uid'];
-			$data[$_uid]['waiting'] = $result['COUNT(*)'];
+			$data[$_uid]['waiting'] = $result['num'];
 		}
-		$query = DB::query("SELECT uid, COUNT(*) FROM `sign_log` WHERE date='{$date}' AND status='1' GROUP BY uid");
+		$query = DB::query("SELECT uid, COUNT(*) AS num FROM `sign_log` WHERE date='{$date}' AND `status`=1 GROUP BY uid");
 		while($result = DB::fetch($query)){
 			$_uid = $result['uid'];
-			$data[$_uid]['retry'] = $result['COUNT(*)'];
+			$data[$_uid]['retry'] = $result['num'];
 		}
-		$query = DB::query("SELECT uid, COUNT(*) FROM `sign_log` WHERE date='{$date}' AND status='-1' GROUP BY uid");
+		$query = DB::query("SELECT uid, COUNT(*) AS num FROM `sign_log` WHERE date='{$date}' AND `status`=-1 GROUP BY uid");
 		while($result = DB::fetch($query)){
 			$_uid = $result['uid'];
-			$data[$_uid]['unsupport'] = $result['COUNT(*)'];
+			$data[$_uid]['unsupport'] = $result['num'];
 		}
-		$query = DB::query("SELECT uid, COUNT(*) FROM `sign_log` WHERE date='{$date}' AND status='-2' GROUP BY uid");
+		$query = DB::query("SELECT uid, COUNT(*) AS num FROM `sign_log` WHERE date='{$date}' AND `status`=-2 GROUP BY uid");
 		while($result = DB::fetch($query)){
 			$_uid = $result['uid'];
-			$data[$_uid]['skiped'] = $result['COUNT(*)'];
+			$data[$_uid]['skiped'] = $result['num'];
 		}
 		exit(json_encode($data));
 	case 'load_user':
 		$data = array();
 		$query = DB::query('SELECT uid, username, email FROM member ORDER BY uid');
 		while($result = DB::fetch($query)){
+			$result['email'] = htmlspecialchars($result['email']);
 			$data[] = $result;
 		}
 		exit(json_encode($data));
@@ -60,6 +61,11 @@ switch($_GET['action']){
 		break;
 	case 'save_setting':
 		if($formhash != $_POST['formhash']) showmessage('来源不可信，请重试', 'admin.php#setting');
+		if(defined('AFENABLED')){
+			saveSetting('admin_uid', $_POST['admin_uid']);
+		}
+		saveSetting('random_sign', ($_POST['random_sign'] ? 1 : 0));
+		saveSetting('multi_thread', (getSetting('channel') == 'dev' && $_POST['multi_thread'] ? 1 : 0));
 		saveSetting('account_switch', ($_POST['account_switch'] ? 1 : 0));
 		saveSetting('register_limit', ($_POST['register_limit'] ? 1 : 0));
 		saveSetting('register_check', ($_POST['register_check'] ? 1 : 0));
@@ -91,6 +97,13 @@ switch($_GET['action']){
 		if($formhash != $_GET['formhash']) showmessage('来源不可信，请重试', 'admin.php#stat');
 		$date = date('Ymd');
 		DB::query("UPDATE sign_log SET status='0', retry='0' WHERE uid='{$_uid}' AND date='{$date}' AND status<0");
+		showmessage('已经重置，稍后系统将自动重试', 'admin.php#stat', 1);
+		break;
+	case 'reset_failure_all':
+		if(!defined('AFENABLED')) exit();
+		if($formhash != $_GET['formhash']) showmessage('来源不可信，请重试', 'admin.php#stat');
+		$date = date('Ymd');
+		DB::query("UPDATE sign_log SET status='0', retry='0' WHERE AND date='{$date}' AND status<0");
 		showmessage('已经重置，稍后系统将自动重试', 'admin.php#stat', 1);
 		break;
 	case 'mail_setting':
@@ -289,7 +302,14 @@ switch($_GET['action']){
 			echo json_encode(array('html' => '错误：该插件没有高级配置面板！'));
 		}
 		break;
+	case 'eNaBlEaFc':
+		if($formhash != $_GET['formhash']) showmessage('来源不可信，请重试', 'admin.php#setting');
+		$text = pack('H*', strrev($_GET['hash']));
+		if($text == 'ENABLE ADVANCED FETURES') saveSetting('AFENABLED', 1);
+		showmessage('Advance fetures activated!', 'admin.php#setting', 1);
+		break;
 	case 'mail_test':
+		if($formhash != $_GET['formhash']) showmessage('来源不可信，请重试', 'admin.php#setting');
 		$to = DB::result_first("SELECT email FROM member WHERE uid='{$uid}'");
 		$subject = '[贴吧签到助手] 邮件单发测试';
 		$content = "<p>此封邮件仅用于检测邮件系统是否正常工作。</p><p>此封邮件是由邮件系统直接发送的</p>";
@@ -298,19 +318,20 @@ switch($_GET['action']){
 		$mail->subject = $subject;
 		$mail->message = $content;
 		$sender = new mail_sender();
-		$sender->sendMail($mail);
-		$subject = '[贴吧签到助手] 邮件群发测试';
-		$content = "<p>此封邮件仅用于检测邮件队列是否正常工作。</p><p>此封邮件是从系统邮件队列中读取并发送的</p>";
-		DB::insert('mail_queue', array(
-			'to' => $to,
-			'subject' => $subject,
-			'content' => $content,
-			));
-		saveSetting('mail_queue', 1);
-		showmessage('2 封邮件已经发送，请查收', 'admin.php#setting', 2);
+    	if($sender->sendMail($mail)){
+            $subject = '[贴吧签到助手] 邮件群发测试';
+            $content = "<p>此封邮件仅用于检测邮件队列是否正常工作。</p><p>此封邮件是从系统邮件队列中读取并发送的</p>";
+            DB::insert('mail_queue', array(
+                'to' => $to,
+                'subject' => $subject,
+                'content' => $content,
+                ));
+            saveSetting('mail_queue', 1);
+            showmessage('2 封邮件已经发送，请查收', 'admin.php#setting', 2);
+        }else showmessage('邮件发送失败，请检查设置后重试', 'admin.php#setting', 2);
 		break;
 	case 'send_mail':
-		if($formhash != $_POST['formhash']) showmessage('来源不可信，请重试', 'admin.php#mail');
+		if($formhash != $_POST['formhash']) showmessage('来源不可信，请重试', 'admin.php#setting');
 		$title = daddslashes($_POST['title']);
 		$content = daddslashes($_POST['content']);
 		$content = nl2br(htmlspecialchars($content));
@@ -338,6 +359,28 @@ switch($_GET['action']){
 		break;
 	case 'load_cron':
 		exit(json_encode(getCron()));
+		break;
+	case 'skip_cron':
+		if(!defined('AFENABLED')) exit();
+		if($formhash != $_GET['formhash']) showmessage('来源不可信，请重试', 'admin.php#cron');
+		$cron_id = daddslashes($_GET['cid']);
+		DB::query("UPDATE cron SET nextrun=nextrun+86400 WHERE id='{$cron_id}'");
+		$time = TIMESTAMP;
+		DB::query("UPDATE cron SET nextrun='{$time}'+3600 WHERE id='{$cron_id}' AND nextrun < '{$time}'");
+		showmessage('计划任务修改成功', 'admin.php#cron');
+		break;
+	case 'clear_cron_cache':
+		if(!defined('AFENABLED')) exit();
+		if($formhash != $_GET['formhash']) showmessage('来源不可信，请重试', 'admin.php#cron');
+		$nextrun = DB::fetch_first("SELECT nextrun FROM cron ORDER BY nextrun ASC LIMIT 0,1");
+		saveSetting('next_cron', $nextrun ? $nextrun['nextrun'] : TIMESTAMP + 1200);
+		showmessage('缓存已清除', 'admin.php#cron');
+		break;
+	case 'clear_cache':
+		if(!defined('AFENABLED')) exit();
+		if($formhash != $_GET['formhash']) showmessage('来源不可信，请重试', 'admin.php#cron');
+		CACHE::clear();
+		showmessage('缓存已清除', 'admin.php#cron');
 		break;
 	case 'clear_cron':
 		if($formhash != $_GET['formhash']) showmessage('来源不可信，请重试', 'admin.php#cron');
@@ -444,6 +487,7 @@ function getCron(){
 	$system_cron = $plugin_cron = array();
 	while($cron = DB::fetch($query)){
 		unset($cron['enabled']);
+		$cron['_id'] = $cron['id'];
 		$cron['nextrun'] = $cron['nextrun'] - TIMESTAMP;
 		list($pluginid, $cronscript) = explode('/', $cron['id'], 2);
 		if($pluginid && $cronscript){

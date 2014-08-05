@@ -2,12 +2,20 @@
 if(!defined('IN_KKFRAME')) exit();
 $date = date('Ymd', TIMESTAMP);
 $count = DB::result_first("SELECT COUNT(*) FROM `sign_log` WHERE status IN (0, 1) AND date='{$date}'");
-set_time_limit(60);
-$endtime = TIMESTAMP + 45;
-if($count){
+@set_time_limit(60);
+$multi_thread = getSetting('channel') == 'dev' && getSetting('multi_thread');
+$endtime = $multi_thread ? TIMESTAMP + 10 : TIMESTAMP + 45;
+if($nowtime - $today < 1800){
+	cron_set_nextrun($today + 1800);
+}elseif($count){
+	if($multi_thread){
+		$ret = MultiThread::registerThread(5, 10);
+		if($ret) MultiThread::newCronThread();
+	}
+	if(getSetting('next_cron') < TIMESTAMP - 3600) cron_set_nextrun(TIMESTAMP - 1);
 	while($endtime > time()){
-		if($count < 0) break;
-		$offset = 0;
+		if($count <= 0) break;
+		$offset = getSetting('random_sign') ? rand(1, $count) - 1 : 0;
 		$res = DB::fetch_first("SELECT tid, status FROM `sign_log` WHERE status IN (0, 1) AND date='{$date}' ORDER BY uid LIMIT {$offset},1");
 		$tid = $res['tid'];
 		if(!$tid) break;
@@ -44,6 +52,10 @@ if($count){
 			$count--;
 		}
 	}
+	if($multi_thread){
+		$ret = MultiThread::registerThread(5, 10);
+		if($ret) MultiThread::newCronThread();
+	}
 }else{
-	cron_set_nextrun($tomorrow + 1800);
+	cron_set_nextrun($nowtime + 1800);
 }

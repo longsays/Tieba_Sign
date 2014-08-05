@@ -1,45 +1,52 @@
 <?php
-if(!defined('SAE_ACCESSKEY')) exit();
-define('IN_KKFRAME', true);
-define('SYSTEM_ROOT', dirname(__FILE__).'/');
-define('ROOT', dirname(SYSTEM_ROOT).'/');
+if(!getenv('OPENSHIFT_APP_NAME')){
+	header('Location: ./');
+	exit();
+}
 error_reporting(E_ERROR | E_PARSE);
-$_config = array(
-	'db' => array(
-		'server' => SAE_MYSQL_HOST_M,
-		'port' => SAE_MYSQL_PORT,
-		'username' => SAE_MYSQL_USER,
-		'password' => SAE_MYSQL_PASS,
-		'name' => SAE_MYSQL_DB,
-		'pconnect' => false,
-	),
-);
-require_once '../system/class/error.php';
-set_exception_handler(array('error', 'exception_error'));
-require_once '../system/class/db.php';
-$query = DB::query("SELECT v FROM setting LIMIT 0,1", 'SILENT');
-if($query){
+$config_file = dirname(__FILE__).'/../system/config.inc.php';
+include_once $config_file;
+if($_config){
 	header('Location: ..');
 	exit();
 }
 
+@touch($config_file);
+
 switch($_GET['step']){
 	default:
-		$content = '<p>欢迎使用 贴吧签到助手 安装向导！</p><p>本程序将会指引你在服务器上配置好“贴吧签到助手”</p><p>点击右侧的“下一步”按钮开始</p><p class="btns"><button onclick="location.href=\'./sae.php?step=database\';">下一步 &raquo;</button>';
+		$content = '<p>欢迎使用 贴吧签到助手 安装向导！</p><p>本程序将会指引你在服务器上配置好“贴吧签到助手”</p><p>点击右侧的“下一步”按钮开始</p><br><p>Openshift one-key installer. Thanks to <a href="http://tieba.baidu.com/home/main?un=%D3%F4%C3%C6de%CB%B5" target="_blank">郁闷de说</a></p><p class="btns"><button onclick="location.href=\'./openshift.php?step=database\';">下一步 &raquo;</button>';
 		show_install_page('Welcome', $content);
 		break;
 	case 'database':
-		$content = '<div class="config"><p>请填写基本信息</p><br>';
-		$content .= '<form action="./sae.php?step=install" method="post" onsubmit="show_waiting();">';
+		$content = '<div class="config"><p>请设置站点管理员信息</p><br>';
+		$content .= '<form action="./openshift.php?step=install" method="post" onsubmit="show_waiting();">';
 		$content .= '<p><span>管理员用户名:</span><input type="text" name="username" required /></p>';
 		$content .= '<p><span>管理员密码:</span><input type="password" name="password" required /></p>';
 		$content .= '<p><span>管理员邮箱:</span><input type="text" name="email" required /></p>';
 		$content .= '<p class="btns"><span>&nbsp;</span><input type="submit" value="下一步 &raquo;" /></p>';
 		$content .= '</form></div><div class="waiting hidden"><p>程序正在执行必要的安装步骤，请耐心等待...</p></div>';
 		$content .= '<script type="text/javascript">function show_waiting(){ $(".config").hide(); $(".waiting").show(); }</script>';
-		show_install_page('系统配置', $content);
+		show_install_page('站点配置', $content);
 		break;
 	case 'install':
+		$db_host = getenv('OPENSHIFT_MYSQL_DB_HOST');
+		$db_port = intval(getenv('OPENSHIFT_MYSQL_DB_PORT'));
+		$db_username = getenv('OPENSHIFT_MYSQL_DB_USERNAME');
+		$db_password = getenv('OPENSHIFT_MYSQL_DB_PASSWORD');
+		$db_name = getenv('OPENSHIFT_APP_NAME');
+		$db_pconnect = false;
+		$function = $db_pconnect ? 'mysql_connect' : 'mysql_pconnect';
+		$link = mysql_connect("{$db_host}:{$db_port}", $db_username, $db_password);
+		if(!$link) show_back('数据库配置', '错误：无法连接数据库服务器！</p><p>'.mysql_error());
+		$selected = mysql_select_db($db_name, $link);
+		if(!$selected){
+			// 尝试新建
+			mysql_query("CREATE DATABASE `{$db_name}`", $link);
+			$selected = mysql_select_db($db_name, $link);
+			if(!$selected) show_back('数据库配置', '错误：指定的数据库不可用</p><p>'.mysql_error());
+		}
+		mysql_query("SET character_set_connection=utf8, character_set_results=utf8, character_set_client=binary");
 		$syskey = random(32);
 		$username = addslashes($_POST['username']);
 		$password = md5($syskey.md5($_POST['password']).$syskey);
@@ -52,16 +59,17 @@ switch($_GET['step']){
 		preg_match('/version ([0-9a-z.]+)/i', $install_script, $match);
 		$version = trim($match[1]);
 		if(!$version) show_back('正在安装', '安装脚本有误，请重新上传');
-		$err = runquery($install_script);
-		DB::query("INSERT INTO member SET username='{$username}', password='{$password}', email='{$email}'");
-		$uid = DB::insert_id();
-		DB::query("INSERT INTO member_setting SET uid='{$uid}', cookie=''");
+		$err = runquery($install_script, $link);
+		mysql_query("INSERT INTO member SET username='{$username}', password='{$password}', email='{$email}'");
+		$uid = mysql_insert_id($link);
+		mysql_query("INSERT INTO member_setting SET uid='{$uid}', cookie=''");
 		saveSetting('block_register', 1);
 		saveSetting('jquery_mode', 2);
 		saveSetting('admin_uid', $uid);
 		saveSetting('SYS_KEY', $syskey);
-		saveSetting('version', $version);
+		if($err) show_back('正在安装', '安装过程出现错误:</p><p>'.mysql_error());
 		$_config = array(
+			'version' => $version,
 			'db' => array(
 				'server' => $db_host,
 				'port' => $db_port,
@@ -74,7 +82,7 @@ switch($_GET['step']){
 		$content = '<?php'.PHP_EOL.'/* Auto-generated config file */'.PHP_EOL.'$_config = ';
 		$content .= var_export($_config, true).';'.PHP_EOL.'?>';
 		file_put_contents($config_file, $content);
-		$content = '<p>贴吧签到助手 已经成功安装！</p><p>系统默认关闭用户注册，如果有需要，请到后台启用用户注册功能。</p><br><p class="btns"><button onclick="location.href=\'../\';">登录 &raquo;</button>';
+		$content = '<p>贴吧签到助手 已经成功安装！</p><p>系统默认关闭用户注册，如果有需要，请到后台启用用户注册功能。</p><p style="color: red">Openshift 用户如出现错误请前往管理界面重启应用</p><br><p class="btns"><button onclick="location.href=\'../\';">登录 &raquo;</button>';
 		show_install_page('安装成功', $content);
 }
 
@@ -99,14 +107,15 @@ function runquery($sql, $link){
 	foreach(explode(";\n", trim($sql)) as $query) {
 		$query = trim($query);
 		if(!$query) continue;
-		DB::query($query, $link);
+		$ret = mysql_query($query, $link);
+		if(!$ret) return mysql_error();
 	}
 }
 
 function saveSetting($k, $v){
 	global $link;
 	$v = addslashes($v);
-	DB::query("REPLACE INTO setting SET v='{$v}', k='{$k}'", $link);
+	mysql_query("REPLACE INTO setting SET v='{$v}', k='{$k}'", $link);
 }
 
 function random($length, $numeric = 0) {

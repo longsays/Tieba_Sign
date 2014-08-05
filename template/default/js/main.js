@@ -62,6 +62,7 @@ $(document).ready(function() {
 	// Load JS
 	load_js();
 	if(new_version) upgrade_tips();
+	loadTiebaAutoComplete();
 });
 
 var guide_viewed = false;
@@ -74,9 +75,20 @@ function load_liked_tieba(){
 	$.getJSON("ajax.php?v=liked_tieba", function(result){
 		if(!result) return;
 		$('#content-liked_tieba table tbody').html('');
+		var tieba_name = new Array;
+		var tieba_uname = new Array;
 		$.each(result, function(i, field){
+			if(typeof localStorage != 'undefined'){
+				tieba_name.push(field.name);
+				tieba_uname.push(field.unicode_name);
+			}
 			$("#content-liked_tieba table tbody").append("<tr><td>"+(i+1)+"</td><td><a href=\"http://tieba.baidu.com/f?kw="+field.unicode_name+"\" target=\"_blank\">"+field.name+"</a></td><td><input type=\"checkbox\" value=\""+field.tid+"\""+(field.skiped=='1' ? ' checked' : '')+" class=\"skip_sign\" /></td></tr>");
 		});
+		if(typeof localStorage != 'undefined'){
+			localStorage['tieba_name'] = tieba_name.join('||');
+			localStorage['tieba_uname'] = tieba_uname.join('||');
+		}
+		loadTiebaAutoComplete();
 		$('#content-liked_tieba .skip_sign').click(function(){
 			showloading();
 			this.disabled = 'disabled';
@@ -132,10 +144,12 @@ function load_setting(){
 		if(!result) return;
 		$('#error_mail').attr('checked', result.error_mail == "1");
 		$('#send_mail').attr('checked', result.send_mail == "1");
+		$('#zhidao_sign').attr('checked', result.zhidao_sign == "1");
 		$('#wenku_sign').attr('checked', result.wenku_sign == "1");
 		$('#bdbowser').removeAttr('disabled');
 		$('#error_mail').removeAttr('disabled');
 		$('#send_mail').removeAttr('disabled');
+		$('#zhidao_sign').removeAttr('disabled');
 		$('#wenku_sign').removeAttr('disabled');
 	}).fail(function() { createWindow().setTitle('系统错误').setContent('发生未知错误: 无法获取系统设置').addButton('确定', function(){ location.reload(); }).append(); }).always(function(){ hideloading(); });
 }
@@ -235,5 +249,15 @@ function load_js(){
 		script.type = 'text/javascript';
 		script.src = defered_js[id] + '?' + Math.random();
 		document.getElementsByTagName('head')[0].appendChild(script);
+	}
+}
+function loadTiebaAutoComplete(){
+	if(typeof localStorage == 'undefined') return;
+	$('#autocomplete-tieba').remove();
+	$('#append_parent').append('<datalist id="autocomplete-tieba" class="hidden"></datalist>');
+	var tieba = localStorage['tieba_name'].split('||');
+	if(tieba.length == 0) return;
+	for(var i=0; i<tieba.length; i++){
+		$('#autocomplete-tieba').append('<option value="'+tieba[i].replace('"', "&quot;")+'">');
 	}
 }

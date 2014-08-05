@@ -1,12 +1,16 @@
+var fwin_id = 1;
+var FWIN = [];
 function createWindow(){
 	var win = new Object();
+	FWIN[fwin_id] = win;
+	win.id = fwin_id++;
 	win.obj = document.createElement('div');
 	win.obj.className = 'fwin';
+	win.obj.id = 'fwin_' + win.id;
 	win.title = '提示信息';
 	win.content = 'null';
 	win.btns = document.createElement('p');
 	win.btns.className = 'btns';
-	win.allow_close = true;
 	win.with_cover = true;
 	win.setTitle = function(str){
 		this.title = str;
@@ -38,15 +42,6 @@ function createWindow(){
 		return this;
 	}
 	win.append = function(){
-		if (this.allow_close) {
-			var closebtn = document.createElement('span');
-			closebtn.className = 'close';
-			closebtn.innerText = 'x';
-			closebtn.onclick = function(){
-				win.close();
-			};
-			this.obj.appendChild(closebtn);
-		}
 		var win_title = document.createElement('h3');
 		win_title.innerHTML = this.title;
 		var obj = this.obj;
@@ -56,21 +51,25 @@ function createWindow(){
 		var win_content = document.createElement('div');
 		win_content.className = 'fcontent';
 		win_content.innerHTML = this.content;
-		if (this.btns.innerHTML) {
-			win_content.appendChild(this.btns);
-		}
 		this.obj.appendChild(win_content);
+		if (this.btns.innerHTML) {
+			this.obj.appendChild(this.btns);
+		}
 		$('#append_parent').append(this.obj);
-		var top = ($('body').height() - this.obj.clientHeight) / 2;
-		var left = ($('body').width() - this.obj.clientWidth) / 2;
+		var top = (document.body.clientHeight - this.obj.clientHeight) / 2;
+		var left = (document.body.clientWidth - this.obj.clientWidth) / 2;
 		this.obj.style.top = top + 'px';
 		this.obj.style.left = left + 'px';
-		if(this.with_cover) showcover();
+		if(this.with_cover){
+			$('.wrapper').addClass('blur');
+			showcover();
+		}
 		return false;
 	}
 	win.close = function(){
 		if(this.with_cover) hidecover();
 		win.obj.className = 'fwin h';
+		$('.wrapper').removeClass('blur');
 		setTimeout(function(){ $(win.obj).remove(); }, 300);
 	}
 	return win;

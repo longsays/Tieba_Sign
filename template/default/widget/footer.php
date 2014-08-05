@@ -1,10 +1,12 @@
 <?php
 if(!defined('IN_KKFRAME')) exit();
 ?>
-<p class="copyright"><?php if(getSetting('beian_no')) echo '<a href="http://www.miibeian.gov.cn/" target="_blank" rel="nofollow">'.getSetting('beian_no').'</a> - '; ?><?php HOOK::run('page_footer'); ?></p>
-</div>
 <script src="<?php echo jquery_path(); ?>"></script>
-<script type="text/javascript">var formhash = '<?php echo $formhash; ?>';var version = '<?php echo VERSION; ?>';</script>
+<script type="text/javascript">
+var formhash = '<?php echo $formhash; ?>';
+var version = '<?php echo VERSION; ?>';
+<?php echo 'var AF = '.(defined('AFENABLED') ? 1 : 0); ?>
+</script>
 <script src="./template/default/js/kk_dropdown.js?version=<?php echo VERSION; ?>"></script>
 <?php
 if(defined('IN_ADMINCP')){

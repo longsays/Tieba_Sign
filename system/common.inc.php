@@ -4,7 +4,7 @@ define('IN_KKFRAME', true);
 define('SYSTEM_ROOT', dirname(__FILE__).'/');
 define('ROOT', dirname(SYSTEM_ROOT).'/');
 define('TIMESTAMP', time());
-define('VERSION', '1.14.4.24');
+define('VERSION', '1.14.6.2');
 define('UI_VERSION', '1.0');
 
 define('DEBUG_ENABLED', isset($_GET['debug']));
@@ -15,8 +15,8 @@ require_once SYSTEM_ROOT.'./class/error.php';
 set_exception_handler(array('error', 'exception_error'));
 
 function class_loader($class_name){
-	list($type, $plugin_id) = explode('_', $class_name, 2);
-	if ($type == 'plugin') {
+	list($type, $plugin_id) = explode('_', strtolower($class_name), 2);
+	if ($type == 'plugin' && $plugin_id) {
 		$file_path = "plugins/{$plugin_id}/plugin.class.php";
 	} elseif ($type == 'widget') {
 		$file_path = "system/class/widget/{$class_name}.php";

@@ -4,9 +4,9 @@ class core {
 	function init() {
 		global $_config;
 		if(!$_config) require_once SYSTEM_ROOT.'./config.inc.php';
-		DEBUG::INIT();
 		$this->init_header();
 		$this->init_useragent();
+		CACHE::pre_fetch('setting', 'plugin', 'plugins');
 		Updater::init();
 		$this->init_syskey();
 		$this->init_cookie();
@@ -68,6 +68,7 @@ class core {
 	function init_final() {
 		define('SYSTEM_STARTED', true);
 		@ignore_user_abort(true);
+		if(getSetting('AFENABLED')) define('AFENABLED', true);
 		HOOK::run('on_load');
 	}
 	function init_cron() {

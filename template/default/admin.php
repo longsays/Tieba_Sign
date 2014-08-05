@@ -8,12 +8,10 @@ if(!defined('IN_ADMINCP')) exit();
 <?php include template('widget/meta'); ?>
 </head>
 <body>
-<div class="wrapper" id="page_index">
 <div id="append_parent"><div class="cover hidden"></div><div class="loading-icon"><img src="./template/default/style/loading.gif" /> 载入中...</div></div>
-<div class="main-box clearfix">
+<div class="wrapper" id="page_index">
 <h1>贴吧签到助手 - 管理中心</h1>
 <div class="menubtn"><p>-</p><p>-</p><p>-</p></div>
-<div class="main-wrapper">
 <div class="sidebar">
 <ul id="menu" class="menu">
 <li id="menu_user"><a href="#user">用户管理</a></li>
@@ -28,10 +26,17 @@ if(!defined('IN_ADMINCP')) exit();
 </ul>
 </div>
 <div class="main-content">
-<div id="content-user">
+<div id="content-loader">
+<h2>正在加载 jQuery 组件...</h2>
+<p>首次加载需要较长时间，请您耐心等待.</p>
+<p>jQuery 加载完成前，您暂时无法操作本页面.</p>
+<br />
+<p>如果您长时间停留在此页面，请手动刷新网页.</p>
+</div>
+<div id="content-user" class="hidden">
 <h2>用户管理</h2>
 <table>
-<thead><tr><td style="width: 40px">UID</td><td>用户名</td><td>邮箱</td><td>操作</td></tr></thead>
+<thead><tr><td style="width: 40px">UID</td><td>用户名</td><td class="mobile_hidden">邮箱</td><td>操作</td></tr></thead>
 <tbody></tbody>
 </table>
 </div>
@@ -41,6 +46,9 @@ if(!defined('IN_ADMINCP')) exit();
 <thead><tr><td style="width: 40px">UID</td><td>用户名</td><td>已成功</td><td>已跳过</td><td>待签到</td><td>待重试</td><td>不支持</td></tr></thead>
 <tbody></tbody>
 </table>
+<?php
+if(defined('AFENABLED')) echo '<a id="reset_failure_all" href="javascript:;" class="btn red">一键重置无法签到的贴吧</a>';
+?>
 </div>
 <div id="content-setting" class="hidden">
 <h2>系统设置</h2>
@@ -63,11 +71,25 @@ if(!getSetting('use_sae_api')){
 <?php } ?>
 <br>
 <form method="post" action="admin.php?action=save_setting" id="setting_form" onsubmit="return post_win(this.action, this.id)">
-<p>功能增强:</p>
 <input type="hidden" name="formhash" value="<?php echo $formhash; ?>">
+<?php if(defined('AFENABLED')) { ?>
+<p><a href="admin.php?action=clear_cache&formhash=<?php echo $formhash; ?>" class="btn red" onclick="return msg_win_action(this.href)">清除系统缓存</a></p>
+<p>管理员 UID: （使用英文逗号分隔）</p>
+<p><input type="text" id="admin_uid" name="admin_uid" value="<?php echo getSetting('admin_uid'); ?>" /></p>
+<?php } ?>
+<p>功能增强:</p>
+<p><label><input type="checkbox" id="random_sign" name="random_sign" /> 使用随机签到模式</label></p>
+<p><label><input type="checkbox" id="multi_thread" name="multi_thread" /> 多线程签到 (Alpha, Nightly version only)</label></p>
 <p><label><input type="checkbox" id="account_switch" name="account_switch" /> 允许多用户切换</label></p>
 <p><label><input type="checkbox" id="autoupdate" name="autoupdate" /> 每天自动更新用户喜欢的贴吧 (稍占服务器资源)</label></p>
 <p>功能限制:</p>
+<?php
+if(defined('AFENABLED')) {
+?>
+<p><label>每个用户最多喜欢 <input type="text" id="max_tieba" name="max_tieba" style="width: 50px" /> 个贴吧</label></p>
+<?php
+}else{
+?>
 <p>
 <select name="max_tieba" id="max_tieba">
 <option value="0" selected>不限制单用户的最大喜欢贴吧数量</option>
@@ -77,8 +99,13 @@ if(!getSetting('use_sae_api')){
 <option value="120">每个用户最多喜欢 120 个贴吧</option>
 <option value="180">每个用户最多喜欢 180 个贴吧</option>
 <option value="250">每个用户最多喜欢 250 个贴吧</option>
+<option value="350">每个用户最多喜欢 350 个贴吧</option>
+<option value="500">每个用户最多喜欢 500 个贴吧</option>
+<option value="750">每个用户最多喜欢 750 个贴吧</option>
+<option value="1000">每个用户最多喜欢 1000 个贴吧</option>
 </select>
 </p>
+<?php } ?>
 <p>防恶意注册:</p>
 <p><label><input type="checkbox" id="block_register" name="block_register" /> 彻底关闭新用户注册功能</label></p>
 <p><label><input type="checkbox" id="register_check" name="register_check" /> 启用内置的简单防恶意注册系统 (可能会导致无法注册)</label></p>
@@ -155,7 +182,12 @@ foreach($classes as $id=>$obj){
 <thead><tr><td style="width: 40px">#</td><td>类型</td><td>计划任务脚本名</td><td>下次执行</td><td>当前状态</td></tr></thead>
 <tbody></tbody>
 </table>
-<p><a href="admin.php?action=clear_cron&formhash=<?php echo $formhash; ?>" class="btn red" onclick="return msg_callback_action(this.href, load_cron)">清理无效任务</a></p>
+<p>
+<a href="admin.php?action=clear_cron&formhash=<?php echo $formhash; ?>" class="btn red" onclick="return msg_callback_action(this.href, load_cron)">清理无效任务</a>
+<?php
+if(defined('AFENABLED')) echo '<a href="admin.php?action=clear_cron_cache&formhash='.$formhash.'" class="btn red" onclick="return msg_callback_action(this.href, load_cron)">清理执行时间缓存</a>';
+?>
+</p>
 </div>
 <div id="content-updater" class="hidden">
 <style type="text/css">
@@ -184,7 +216,7 @@ if(getSetting('channel') == 'dev'){
 <p><button class="btn red">开始更新</button></p>
 </div>
 </div>
-</div>
+<p class="copyright"><span class="mobile_hidden">贴吧签到助手 - Designed</span> by <a href="http://www.ikk.me" target="_blank">kookxiang</a>. 2014 &copy; <a href="http://www.kookxiang.com" target="_blank">KK's Laboratory</a> - <a href="http://go.ikk.me/donate" target="_blank">赞助开发</a></p>
 </div>
 </div>
 <?php include template('widget/footer'); ?>

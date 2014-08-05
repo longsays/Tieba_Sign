@@ -55,7 +55,7 @@ function _get_liked_tieba($cookie){
 		foreach ($matches[1] as $key => $value) {
 			$uname = urlencode($value);
 			$_uname = preg_quote($value);
-			preg_match('/ForumManager\.undo_like\(\'([0-9]+)\',\''.preg_quote($uname).'\'/i', $result, $fid);
+			preg_match('/balvid="([0-9]+)"/i', $result, $fid);
 			$kw_name[] = array(
 				'name' => mb_convert_encoding($value, 'utf-8', 'gbk'),
 				'uname' => $uname,
@@ -119,7 +119,7 @@ function _update_liked_tieba($uid, $ignore_error = false, $allow_deletion = true
 			$insert++;
 		}
 	}
-	DB::query("INSERT IGNORE INTO sign_log (tid, uid) SELECT tid, uid FROM my_tieba");
+	DB::query("INSERT IGNORE INTO sign_log (tid, uid, `date`) SELECT tid, uid, '{$date}' FROM my_tieba");
 	if($my_tieba && $allow_deletion){
 		$tieba_ids = array();
 		foreach($my_tieba as $tieba){
@@ -244,6 +244,18 @@ function _client_sign_old($uid, $tieba){
 				return array(1, "ERROR-{$res[error_code]}: ".$res['error_msg'], 0);
 		}
 	}
+}
+
+function _zhidao_sign($uid){
+	$ch = curl_init('http://zhidao.baidu.com/submit/user');
+	curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-www-form-urlencoded'));
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($ch, CURLOPT_COOKIE, get_cookie($uid));
+	curl_setopt($ch, CURLOPT_POST, 1);
+	curl_setopt($ch, CURLOPT_POSTFIELDS, 'cm=100509&t='.TIMESTAMP);
+	$result = curl_exec($ch);
+	curl_close($ch);
+	return @json_decode($result);
 }
 
 function _wenku_sign($uid){
